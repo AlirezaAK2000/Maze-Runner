@@ -1,0 +1,36 @@
+<launch>
+
+    <node pkg="maze_runner" type="pose_monitor.py" name="pose_monitor" ></node>
+
+    <node pkg="maze_runner" type="move_robot.py" name="move_robot" output="screen" clear_params="true">
+    
+        <param name="shape" value="$(arg shape)" />
+        <param name="xdim" value="3"/>
+        <param name="ydim" value="1"/>
+        <param name="growth" value="0.1"/>
+        <param name="xorg" value="0"/>
+        <param name="yorg" value="0"/>
+
+    </node>
+
+
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_house.launch">
+        <arg name="x_pos" value="0"/>
+        <arg name="y_pos" value="0"/>
+        <arg name="z_pos" value="0.0"/>
+
+    </include>
+
+    <node pkg="image_view" type="image_view" name="depth" >
+        <remap from="image" to="/camera/depth/image_raw"/>
+    </node>
+
+    <node pkg="image_view" type="image_view" name="rgb">
+        <remap from="image" to="/camera/rgb/image_raw"/>
+    </node>
+
+
+    <include file="$(find turtlebot_rviz_launchers)/launch/view_robot.launch"/>
+
+   
+</launch>
