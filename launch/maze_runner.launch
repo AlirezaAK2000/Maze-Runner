@@ -1,0 +1,26 @@
+<launch>
+
+    <node pkg="maze_runner" type="obstacle_detector.py" name="obstacle_detector" output="screen"></node>
+
+    <node pkg="maze_runner" type="velocity_controller.py" name="velocity_controller" output="screen"></node>
+
+
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_funcy_maze.launch">
+        <arg name="x_pos" value="-9.0"/>
+        <arg name="y_pos" value="-8.0"/>
+        <arg name="z_pos" value="0.0"/>
+    </include>
+
+    <node pkg="image_view" type="image_view" name="depth" >
+        <remap from="image" to="/camera/depth/image_raw"/>
+    </node>
+
+    <node pkg="image_view" type="image_view" name="rgb">
+        <remap from="image" to="/camera/rgb/image_raw"/>
+    </node>
+
+
+    <include file="$(find turtlebot_rviz_launchers)/launch/view_robot.launch"/>
+
+   
+</launch>
