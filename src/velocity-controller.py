@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/python3
 
 import math
 from numpy.core.arrayprint import dtype_is_implied
@@ -19,45 +19,43 @@ import numpy as np
 import sys
 
 
-class PIController():
+class PIController:
     def __init__(self, *args, **kwargs):
         # Give the node a name
-        rospy.init_node('nav_square', anonymous=False)
+        rospy.init_node("nav_square", anonymous=False)
 
         # Set rospy to execute a shutdown function when terminating the script
         rospy.on_shutdown(self.shutdown)
 
-        shape = kwargs['shape']
-        
-        x_origin = kwargs['x_origin'] 
-        y_origin = kwargs['y_origin']
+        shape = kwargs["shape"]
+
+        x_origin = kwargs["x_origin"]
+        y_origin = kwargs["y_origin"]
 
         if shape == OVAL:
-            x_dim, y_dim = kwargs['x_dim'], kwargs['y_dim']
-            t = np.linspace(0., 2 * np.pi, 100)
+            x_dim, y_dim = kwargs["x_dim"], kwargs["y_dim"]
+            t = np.linspace(0.0, 2 * np.pi, 100)
             X = x_dim * np.cos(t) + x_origin
             Y = y_dim * np.sin(t) + y_origin
             self.mapp = (X, Y)
-            
-            
+
         elif shape == ARCHIMEDEAN_SPIRAL:
-            growth_factor = kwargs['growth_factor']
-            X , Y = [] , []
+            growth_factor = kwargs["growth_factor"]
+            X, Y = [], []
 
             for i in range(400):
                 t = i / 20 * pi
                 dx = (1 + growth_factor * t) * math.cos(t)
                 dy = (1 + growth_factor * t) * math.sin(t)
                 X.append(x_origin + dx)
-                Y.append(y_origin + dy) 
-                
-            self.mapp = (np.array(X),np.array(Y))
-            
+                Y.append(y_origin + dy)
+
+            self.mapp = (np.array(X), np.array(Y))
+
         # else:
         #     raise NotAValidShape()
-            
 
-        self.new_velocity_sub = rospy.Publisher('/change', Twist, queue_size=1)
+        self.new_velocity_sub = rospy.Publisher("/change", Twist, queue_size=1)
 
         # parameters
         self.k_p = 0.5
@@ -70,19 +68,19 @@ class PIController():
         self.v = 0
 
         # How fast will we check the odometry values?
-        rate = 1/self.dt
+        rate = 1 / self.dt
 
         # Set the equivalent ROS rate variable
         self.r = rospy.Rate(rate)
 
         # Publisher to control the robot's speed
-        self.cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
+        self.cmd_vel = rospy.Publisher("/cmd_vel", Twist, queue_size=5)
 
         # The base frame is base_footprint for the TurtleBot but base_link for Pi Robot
-        self.base_frame = '/base_link'
+        self.base_frame = "/base_link"
 
         # The odom frame is usually just /odom
-        self.odom_frame = '/odom'
+        self.odom_frame = "/odom"
 
         # Initialize the tf listener
         self.tf_listener = tf.TransformListener()
@@ -97,26 +95,30 @@ class PIController():
         self.capture_error = False
 
         # Set the odom frame
-        self.odom_frame = '/odom'
-
+        self.odom_frame = "/odom"
 
         # Find out if the robot uses /base_link or /base_footprint
         try:
             self.tf_listener.waitForTransform(
-                self.odom_frame, '/base_footprint', rospy.Time(), rospy.Duration(1.0))
-            self.base_frame = '/base_footprint'
+                self.odom_frame, "/base_footprint", rospy.Time(), rospy.Duration(1.0)
+            )
+            self.base_frame = "/base_footprint"
         except (tf.Exception, tf.ConnectivityException, tf.LookupException):
             try:
                 self.tf_listener.waitForTransform(
-                    self.odom_frame, '/base_link', rospy.Time(), rospy.Duration(1.0))
-                self.base_frame = '/base_link'
+                    self.odom_frame, "/base_link", rospy.Time(), rospy.Duration(1.0)
+                )
+                self.base_frame = "/base_link"
             except (tf.Exception, tf.ConnectivityException, tf.LookupException):
                 rospy.loginfo(
-                    "Cannot find transform between /odom and /base_link or /base_footprint")
+                    "Cannot find transform between /odom and /base_link or /base_footprint"
+                )
                 rospy.signal_shutdown("tf Exception")
 
     def quat_to_angle(self, quat):
-        return tf.transformations.euler_from_quaternion((quat.x, quat.y, quat.z, quat.w))[2]
+        return tf.transformations.euler_from_quaternion(
+            (quat.x, quat.y, quat.z, quat.w)
+        )[2]
 
     def normalize_angle(self, angle):
         res = angle
@@ -130,9 +132,7 @@ class PIController():
         x_map, y_map = self.mapp
         delta_x = x_map - x
         delta_y = y_map - y
-        distance = np.sqrt(np.power(delta_x, 2) +
-                           np.power(delta_y, 2)
-                           )
+        distance = np.sqrt(np.power(delta_x, 2) + np.power(delta_y, 2))
         i = np.argmin(distance)
         return i
 
@@ -143,15 +143,14 @@ class PIController():
         nearest_point = self.nearest(x, y)
         mapp_x, mapp_y = self.mapp
         sum_i = 0
-        n_x, n_y = round(mapp_x[nearest_point], 6), round(
-            mapp_y[nearest_point], 4)
+        n_x, n_y = round(mapp_x[nearest_point], 6), round(mapp_y[nearest_point], 4)
 
         move_cmd = Twist()
         move_cmd.angular.z = 0
         # Set the movement command to forward motion
         move_cmd.linear.x = self.v
 
-        print(f'first point : {(n_x,n_y)}')
+        print(f"first point : {(n_x,n_y)}")
 
         while True:
             self.cmd_vel.publish(move_cmd)
@@ -160,10 +159,10 @@ class PIController():
             delta_x, delta_y = n_x - x, n_y - y
 
             v_err = np.sqrt(np.power(delta_x, 2) + np.power(delta_y, 2))
-            
+
             self.errors.append(v_err)
-            
-            self.v = min(self.k_p * v_err + self.k_i * sum_i , 0.6)
+
+            self.v = min(self.k_p * v_err + self.k_i * sum_i, 0.6)
 
             sum_i += v_err * self.dt
 
@@ -182,9 +181,11 @@ class PIController():
                 # self.d_star = v_err
                 nearest_point = (nearest_point + 1) % len(mapp_x)
                 # print(nearest_point)
-                n_x, n_y = round(mapp_x[nearest_point], 6), round(
-                    mapp_y[nearest_point], 6)
-                print(f'next point : {(n_x,n_y,nearest_point)}')
+                n_x, n_y = (
+                    round(mapp_x[nearest_point], 6),
+                    round(mapp_y[nearest_point], 6),
+                )
+                print(f"next point : {(n_x,n_y,nearest_point)}")
 
             (position, self.theta) = self.get_odom()
             x, y = position.x, position.y
@@ -196,7 +197,8 @@ class PIController():
 
         try:
             (trans, rot) = self.tf_listener.lookupTransform(
-                self.odom_frame, self.base_frame, rospy.Time(0))
+                self.odom_frame, self.base_frame, rospy.Time(0)
+            )
             if self.capture_error:
                 point = Point(*trans)
                 self.errors.append(self.path_error(point.x, point.y))
@@ -210,9 +212,7 @@ class PIController():
         x_map, y_map = self.mapp
         delta_x = x_map - x
         delta_y = y_map - y
-        distance = np.sqrt(np.power(delta_x, 2) +
-                           np.power(delta_y, 2)
-                           )
+        distance = np.sqrt(np.power(delta_x, 2) + np.power(delta_y, 2))
         i = np.argmin(distance)
         return distance[i]
 
@@ -222,16 +222,13 @@ class PIController():
         self.cmd_vel.publish(Twist())
 
         # plot errors
-        plt.plot(list(range(len(self.errors))),
-                    self.errors, color='b', label='errors')
+        plt.plot(list(range(len(self.errors))), self.errors, color="b", label="errors")
         plt.draw()
         plt.legend(loc="upper left", frameon=False)
         plt.savefig("errors.png")
         plt.show()
 
-
-        rospy.loginfo(
-            f"average distance error :  {sum(self.errors)/len(self.errors)}")
+        rospy.loginfo(f"average distance error :  {sum(self.errors)/len(self.errors)}")
 
         rospy.sleep(1)
 
@@ -239,30 +236,28 @@ class PIController():
         self.capture_error = True
 
 
-if __name__ == '__main__':
-        # print(rospy.get_param_names())
+if __name__ == "__main__":
+    # print(rospy.get_param_names())
 
-        # shape = rospy.get_param('/move_robot/shape')
-        
-        # x_origin = rospy.get_param("/move_robot/xorg")
-        # y_origin = rospy.get_param("/move_robot/yorg")
-        
-        
-        # if shape == OVAL:
-        #     x_dim = float(rospy.get_param("/move_robot/xdim"))
-        #     y_dim = float(rospy.get_param("/move_robot/ydim"))
-        #     print(y_dim)
-        #     pic = PIController(shape=shape, x_dim=x_dim, y_dim=y_dim , x_origin = x_origin , y_origin=y_origin)
-        #     pic.move()
+    # shape = rospy.get_param('/move_robot/shape')
 
-        # elif shape == ARCHIMEDEAN_SPIRAL:
-        #     growth_factor = float(rospy.get_param("/move_robot/growth"))
-        #     pic = PIController(shape = shape , growth_factor=growth_factor , x_origin = x_origin ,y_origin = y_origin )
-        #     pic.move()
+    # x_origin = rospy.get_param("/move_robot/xorg")
+    # y_origin = rospy.get_param("/move_robot/yorg")
+
+    # if shape == OVAL:
+    #     x_dim = float(rospy.get_param("/move_robot/xdim"))
+    #     y_dim = float(rospy.get_param("/move_robot/ydim"))
+    #     print(y_dim)
+    #     pic = PIController(shape=shape, x_dim=x_dim, y_dim=y_dim , x_origin = x_origin , y_origin=y_origin)
+    #     pic.move()
+
+    # elif shape == ARCHIMEDEAN_SPIRAL:
+    #     growth_factor = float(rospy.get_param("/move_robot/growth"))
+    #     pic = PIController(shape = shape , growth_factor=growth_factor , x_origin = x_origin ,y_origin = y_origin )
+    #     pic.move()
 
     #     else:
     #         print('not a valid shape !!!')
-            
 
     # except rospy.ROSInterruptException:
     #     rospy.loginfo("Navigation terminated.")
