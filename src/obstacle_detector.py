@@ -31,7 +31,7 @@ class ObstacleDetector:
         self.odom_sub = rospy.Subscriber("/odom", Odometry, self.callback_odometry)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.callback_laser_scan)
         self.window_pub = rospy.Publisher("/window_data", OccupancyGrid, queue_size=10)
-        self.grid_pub = rospy.Publisher("nav_msgs/OccupancyGrid", OccupancyGrid, queue_size=10)
+        self.grid_pub = rospy.Publisher("grid_data", OccupancyGrid, queue_size=10)
         
 
         self.laser_flag = False
