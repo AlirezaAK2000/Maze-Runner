@@ -19,58 +19,20 @@ import numpy as np
 import sys
 
 
-class PIController():
+class RobotController():
     def __init__(self, *args, **kwargs):
         # Give the node a name
-        rospy.init_node('nav_square', anonymous=False)
+        rospy.init_node('velocity_controller', anonymous=False)
 
         # Set rospy to execute a shutdown function when terminating the script
         rospy.on_shutdown(self.shutdown)
 
-        shape = kwargs['shape']
-        
-        x_origin = kwargs['x_origin'] 
-        y_origin = kwargs['y_origin']
-
-        if shape == OVAL:
-            x_dim, y_dim = kwargs['x_dim'], kwargs['y_dim']
-            t = np.linspace(0., 2 * np.pi, 100)
-            X = x_dim * np.cos(t) + x_origin
-            Y = y_dim * np.sin(t) + y_origin
-            self.mapp = (X, Y)
-            
-            
-        elif shape == ARCHIMEDEAN_SPIRAL:
-            growth_factor = kwargs['growth_factor']
-            X , Y = [] , []
-
-            for i in range(400):
-                t = i / 20 * pi
-                dx = (1 + growth_factor * t) * math.cos(t)
-                dy = (1 + growth_factor * t) * math.sin(t)
-                X.append(x_origin + dx)
-                Y.append(y_origin + dy) 
-                
-            self.mapp = (np.array(X),np.array(Y))
-            
-        # else:
-        #     raise NotAValidShape()
-            
 
         self.new_velocity_sub = rospy.Publisher('/change', Twist, queue_size=1)
 
-        # parameters
-        self.k_p = 0.5
-        self.k_i = 0.015
-        self.k_teta = 5
-        self.d_star = 0.1
-        self.dt = 0.01
-        self.theta = 0
-        self.theta_star = 0
-        self.v = 0
 
         # How fast will we check the odometry values?
-        rate = 1/self.dt
+        rate = 10
 
         # Set the equivalent ROS rate variable
         self.r = rospy.Rate(rate)
@@ -90,13 +52,6 @@ class PIController():
         # Give tf some time to fill its buffer
         rospy.sleep(2)
 
-        # on time errors
-        self.errors = []
-
-        # sets where we want to begin capture distance error from real path
-        self.capture_error = False
-
-        # Set the odom frame
         self.odom_frame = '/odom'
 
 
@@ -126,15 +81,7 @@ class PIController():
             res += 2.0 * pi
         return res
 
-    def nearest(self, x, y):
-        x_map, y_map = self.mapp
-        delta_x = x_map - x
-        delta_y = y_map - y
-        distance = np.sqrt(np.power(delta_x, 2) +
-                           np.power(delta_y, 2)
-                           )
-        i = np.argmin(distance)
-        return i
+   
 
     def move(self):
 
@@ -206,65 +153,16 @@ class PIController():
 
         return (Point(*trans), self.quat_to_angle(Quaternion(*rot)))
 
-    def path_error(self, x, y):
-        x_map, y_map = self.mapp
-        delta_x = x_map - x
-        delta_y = y_map - y
-        distance = np.sqrt(np.power(delta_x, 2) +
-                           np.power(delta_y, 2)
-                           )
-        i = np.argmin(distance)
-        return distance[i]
-
+   
     def shutdown(self):
         # Always stop the robot when shutting down the node
         rospy.loginfo("Stopping the robot...")
         self.cmd_vel.publish(Twist())
-
-        # plot errors
-        plt.plot(list(range(len(self.errors))),
-                    self.errors, color='b', label='errors')
-        plt.draw()
-        plt.legend(loc="upper left", frameon=False)
-        plt.savefig("errors.png")
-        plt.show()
-
-
-        rospy.loginfo(
-            f"average distance error :  {sum(self.errors)/len(self.errors)}")
-
         rospy.sleep(1)
 
-    def begin_capture_error(self):
-        self.capture_error = True
-
+    
 
 if __name__ == '__main__':
-        # print(rospy.get_param_names())
-
-        # shape = rospy.get_param('/move_robot/shape')
-        
-        # x_origin = rospy.get_param("/move_robot/xorg")
-        # y_origin = rospy.get_param("/move_robot/yorg")
-        
-        
-        # if shape == OVAL:
-        #     x_dim = float(rospy.get_param("/move_robot/xdim"))
-        #     y_dim = float(rospy.get_param("/move_robot/ydim"))
-        #     print(y_dim)
-        #     pic = PIController(shape=shape, x_dim=x_dim, y_dim=y_dim , x_origin = x_origin , y_origin=y_origin)
-        #     pic.move()
-
-        # elif shape == ARCHIMEDEAN_SPIRAL:
-        #     growth_factor = float(rospy.get_param("/move_robot/growth"))
-        #     pic = PIController(shape = shape , growth_factor=growth_factor , x_origin = x_origin ,y_origin = y_origin )
-        #     pic.move()
-
-    #     else:
-    #         print('not a valid shape !!!')
-            
-
-    # except rospy.ROSInterruptException:
-    #     rospy.loginfo("Navigation terminated.")
+  
 
     pass

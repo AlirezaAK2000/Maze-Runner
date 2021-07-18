@@ -17,15 +17,12 @@ import tf
 # For getting robot’s ground truth from Gazebo
 from gazebo_msgs.srv import GetModelState
 
-class PoseMonitor():
+class PathPlanner():
     def __init__(self):
         
         # Initiate a named node
-        rospy.init_node('pose_monitor', anonymous=True)
+        rospy.init_node('obstacle_detector', anonymous=True)
         
-        self.path = Path()
-        
-        # Subscribe to topic /odom published by the robot base
         self.odom_sub = rospy.Subscriber('/odom', Odometry, self.callback_odometry)
         
         self.path_pub = rospy.Publisher('/path', Path, queue_size=10)
@@ -82,5 +79,4 @@ class PoseMonitor():
 
 
 if __name__ == '__main__':
-    PoseMonitor()
-    rospy.spin()
+    pass

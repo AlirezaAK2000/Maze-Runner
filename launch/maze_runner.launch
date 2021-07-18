@@ -1,8 +1,8 @@
 <launch>
 
-    <node pkg="maze_runner" type="pose_monitor.py" name="pose_monitor" ></node>
+    <node pkg="maze_runner" type="obstacle_detector.py" name="obstacle_detector" ></node>
 
-    <node pkg="maze_runner" type="move_robot.py" name="move_robot" output="screen" clear_params="true">
+    <node pkg="maze_runner" type="velocity_controller.py" name="velocity_controller" output="screen" clear_params="true">
     
         <param name="shape" value="$(arg shape)" />
         <param name="xdim" value="3"/>
