@@ -1,5 +1,4 @@
 <launch>
-
     <node pkg="maze_runner" type="obstacle_detector.py" name="obstacle_detector" output="screen"></node>
 
     <node pkg="maze_runner" type="velocity_controller.py" name="velocity_controller" output="screen"></node>
@@ -22,5 +21,4 @@
 
     <include file="$(find turtlebot_rviz_launchers)/launch/view_robot.launch"/>
 
-   
 </launch>
