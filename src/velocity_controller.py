@@ -19,6 +19,8 @@ from nav_msgs.msg import OccupancyGrid
 import sys
 
 
+ROTATION , MOVE = range(2)
+
 class RobotController():
     def __init__(self, *args, **kwargs):
         # Give the node a name
@@ -54,7 +56,7 @@ class RobotController():
 
         self.odom_frame = '/odom'
 
-        self.angular_speed = 0.7
+        self.angular_speed = 0.3
         
         self.linear_speed = 0.4
         
@@ -83,8 +85,9 @@ class RobotController():
         
         self.smoothing_factors = [1,2,3,4,5,4,3,2,1]
         
-        self.target_point = (-9,14)
+        self.target_point = (0,0)
         
+        self.state = MOVE
         
         self.smax = 90
         
@@ -118,6 +121,13 @@ class RobotController():
 
    
     def callback_grid(self , msg):
+        
+        if self.state == ROTATION:
+            print("duplicate")
+            return
+        
+        self.state = ROTATION
+        
         tw_msg = Twist()
         
         rospy.sleep(0.2)
@@ -126,7 +136,7 @@ class RobotController():
         
         
         dim = int(math.sqrt(len(msg.data)))
-        print(msg.data)
+        # print(msg.data)
         mapp = np.array(list(msg.data)).reshape(dim,dim)
         histogram = np.zeros((self.number_of_sectors,))
         
@@ -157,9 +167,9 @@ class RobotController():
         
         # nearest valley
         valleys = histogram <= self.threshold
-        print(histogram.tolist())
+        # print(histogram.tolist())
         
-        print(valleys)
+        # print(valleys)
         
         pos , rotation = self.get_odom()
         
@@ -214,13 +224,15 @@ class RobotController():
             
         goal_angle = self.normalize_angle(goal_sector * self.angle_increment)
         
+        print("rotation : {} goal_angle : {}".format(rotation , goal_angle))
+        
         tw_msg = Twist()
         
         last_angle = rotation
         
         turn_angle = 0
         
-        tw_msg.angular.z = self.angular_speed * (goal_angle - rotation) / abs(goal_angle - rotation)
+        tw_msg.angular.z = self.angular_speed * (rotation - goal_angle) / abs(goal_angle - rotation)
         
         while abs(turn_angle) < abs(goal_angle) and not rospy.is_shutdown():
             
@@ -238,10 +250,12 @@ class RobotController():
         
         tw_msg = Twist()
         self.cmd_vel.publish(tw_msg)
-        rospy.sleep(0.5)
+        rospy.sleep(2)
         tw_msg = Twist()
         tw_msg.linear.x = self.linear_speed
         self.cmd_vel.publish(tw_msg)
+        
+        self.state = MOVE
         
         
     def get_odom(self):

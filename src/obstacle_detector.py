@@ -86,7 +86,9 @@ class ObstacleDetector:
         map_window.info.origin = self.grid_to_pose(robot_x, robot_y)
         # data
         map_window.data = map_window_data.reshape(self.WINDOW * self.WINDOW).tolist()
-        if not math.isinf(self.laser_scan.ranges[len(self.laser_scan.ranges) // 2]): 
+        print(self.laser_scan.ranges[0])
+        
+        if (not math.isinf(self.laser_scan.ranges[0])) and self.laser_scan.ranges[0] < 1: 
             self.window_pub.publish(map_window)
 
         
