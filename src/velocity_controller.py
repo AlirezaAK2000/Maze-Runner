@@ -117,13 +117,34 @@ class RobotController():
         if res < 0:
             return res + (2 * pi)
         return res
+    
+    
+    def calculate_magnitude(self, window_map):
+        # we have two parameters A , B. 
+        # assume << A + B = M>> to reduce the tunable parameters and calculations
+        M = 1 # could be any real positive number
         
+        N, _ = window_map.shape
+        mid_map = (N - 1) / 2
+        distances = np.zeros(map_size)
+        d_max = mid_map * (2 ** 0.5)
+        
+        # << A - B * d_max = 0 >> and << A + B = M >>.
+        # so << B = M / (1 + d_max) >> and << A = (M * d_max) / (1 + d_max) >>
+        A = (M * d_max) / (1 + d_max)
+        B = M / (1 + d_max)
+        
+        for i in range(map_size):
+            for j in range(map_size):
+                distances[i,j] = ((i - mid_map) ** 2 + (j - mid_map) ** 2) ** 0.5
+        
+        magnitude = (window_map ** 2) * (A - B * distances)
+        return magnitude
 
    
     def callback_grid(self , msg):
         
         if self.state == ROTATION:
-            print("duplicate")
             return
         
         self.state = ROTATION

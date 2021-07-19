@@ -83,7 +83,7 @@ class ObstacleDetector:
         map_window.info.map_load_time = rospy.get_rostime()
         map_window.info.width = self.WINDOW
         map_window.info.height = self.WINDOW
-        map_window.info.origin = self.grid_to_pose(robot_x, robot_y)
+        map_window.info.origin = self.grid_to_pose(robot_x - half_window, robot_y - half_window)
         # data
         map_window.data = map_window_data.reshape(self.WINDOW * self.WINDOW).tolist()
         print(self.laser_scan.ranges[0])
@@ -110,7 +110,7 @@ class ObstacleDetector:
 
 
     def grid_to_pose(self, x_grid , y_grid):
-        mid_grid = (self.GRIDSIZE + 1) / 2
+        mid_grid = (self.GRIDSIZE - 1) / 2
         output = Pose()
         output.position.x = (x_grid - mid_grid) * self.unit
         output.position.y = (y_grid - mid_grid) * self.unit
