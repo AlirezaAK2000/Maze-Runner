@@ -89,7 +89,7 @@ class RobotController():
         
         self.state = MOVE
         
-        self.smax = 90
+        self.smax = 50
         
         #TODO
         # tune the funcking threshold
@@ -174,6 +174,7 @@ class RobotController():
         pos , rotation = self.get_odom()
         
         ktarget = self.scale_angle(np.arctan2((pos.y - self.target_point[1]),(pos.x - self.target_point[0])))
+        # ktarget
         
         ktarget = int(ktarget / self.angle_increment)
         
@@ -188,7 +189,7 @@ class RobotController():
                 ind = i
                 kn = i
                 valley_size = 1
-                while valleys[ind] and ind >= 0:
+                while ind >= 0 and valleys[ind]:
                     valley_size += 1
                     ind -= 1
                 kf = -1
@@ -207,7 +208,7 @@ class RobotController():
                 ind = j
                 kn = j
                 valley_size = 1
-                while valleys[ind] and ind < len(histogram):
+                while ind < len(histogram) and valleys[ind]:
                     valley_size += 1
                     ind += 1
                 kf = -1
