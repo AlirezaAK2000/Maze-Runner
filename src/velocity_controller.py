@@ -263,6 +263,7 @@ class RobotController():
     
 
 if __name__ == '__main__':
-  
+    
+    robot = RobotController()    
 
-    pass
+
