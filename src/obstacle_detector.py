@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 #import rospy library for ROS activities
+from numpy.lib.function_base import select
 import rospy
 
 # Import the Odometry message
@@ -30,12 +31,14 @@ class ObstacleDetector:
         # Subscribe to topic /odom published by the robot base
         self.odom_sub = rospy.Subscriber("/odom", Odometry, self.callback_odometry)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.callback_laser_scan)
-        self.window_pub = rospy.Publisher("/window_data", OccupancyGrid, queue_size=10)
+        self.window_pub = rospy.Publisher("/window_data", OccupancyGrid, queue_size=1)
         self.grid_pub = rospy.Publisher("grid_data", OccupancyGrid, queue_size=10)
         
 
         self.laser_flag = False
         self.odometry_flag = False
+        
+        self.obstacle_window = 10
 
         self.rate = rospy.Rate(1)
 
@@ -86,10 +89,11 @@ class ObstacleDetector:
         map_window.info.origin = self.grid_to_pose(robot_x - half_window, robot_y - half_window)
         # data
         map_window.data = map_window_data.reshape(self.WINDOW * self.WINDOW).tolist()
-        print(self.laser_scan.ranges[0])
-        
-        if (not math.isinf(self.laser_scan.ranges[0])) and self.laser_scan.ranges[0] < 1: 
+        obstacle_detected = len([i for i in self.laser_scan.ranges[:self.obstacle_window] + self.laser_scan.ranges[-self.obstacle_window:] if (not math.isinf(i)) and i < 1.5]) > 0
+        print(obstacle_detected)
+        if obstacle_detected: 
             self.window_pub.publish(map_window)
+            rospy.sleep(10)
 
         
         map_grid = OccupancyGrid()
