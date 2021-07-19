@@ -2,6 +2,8 @@
 
 import math
 
+from numpy.core.shape_base import block
+
 import rospy
 from geometry_msgs.msg import Twist, Point, Quaternion
 import tf
@@ -12,11 +14,13 @@ from math import pi
 
 import numpy as np
 
+import matplotlib.pyplot as plt
 
 from nav_msgs.msg import OccupancyGrid
 
 
 import sys
+
 
 
 ROTATION , MOVE = range(2)
@@ -89,11 +93,11 @@ class RobotController():
         
         self.state = MOVE
         
-        self.smax = 50
+        self.smax = 90
         
         #TODO
         # tune the funcking threshold
-        self.threshold = 150
+        self.threshold = 200
         
         tw_msg = Twist()
         
@@ -162,11 +166,10 @@ class RobotController():
         
         mapp = self.calculate_magnitude(mapp)
         
-        print(mapp.tolist())
+        # print(mapp.tolist())
         
         
         histogram = np.zeros((self.number_of_sectors,))
-        
         
         # constructing a polar histogram
         mid = dim//2
@@ -197,6 +200,10 @@ class RobotController():
         # print(histogram.tolist())
         
         # print(valleys)
+        
+        
+        # plt.hist(histogram, bins=list(range(-len(histogram)//2 ,len(histogram)//2 + 1 )))
+        # plt.show()
         
         pos , rotation = self.get_odom()
         

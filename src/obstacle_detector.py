@@ -38,7 +38,7 @@ class ObstacleDetector:
         self.laser_flag = False
         self.odometry_flag = False
         
-        self.obstacle_window = 10
+        self.obstacle_window = 8
 
         self.rate = rospy.Rate(1)
 
