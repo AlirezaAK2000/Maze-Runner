@@ -84,6 +84,7 @@ class ObstacleDetector:
         map_window.header.frame_id = "map"
         # info
         map_window.info.map_load_time = rospy.get_rostime()
+        map_window.info.resolution = 0.2
         map_window.info.width = self.WINDOW
         map_window.info.height = self.WINDOW
         map_window.info.origin = self.grid_to_pose(robot_x - half_window, robot_y - half_window)
@@ -102,6 +103,7 @@ class ObstacleDetector:
         map_grid.header.frame_id = "map"
         # info
         map_grid.info.map_load_time = rospy.get_rostime()
+        map_grid.info.resolution = 0.2
         map_grid.info.width = self.GRIDSIZE
         map_grid.info.height = self.GRIDSIZE
         map_grid.info.origin = self.grid_to_pose(0, 0)
