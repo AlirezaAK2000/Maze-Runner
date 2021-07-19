@@ -73,7 +73,7 @@ class RobotController():
                     "Cannot find transform between /odom and /base_link or /base_footprint")
                 rospy.signal_shutdown("tf Exception")
                 
-        self.grid_sub = rospy.Subscriber('/obstacle' , OccupancyGrid , self.callback_grid)
+        self.grid_sub = rospy.Subscriber('/window_data' , OccupancyGrid , self.callback_grid)
         
         self.angle_increment = 0.017501922324299812
         
@@ -83,7 +83,7 @@ class RobotController():
         
         self.smoothing_factors = [1,2,3,4,5,4,3,2,1]
         
-        self.target_point = (0,0)
+        self.target_point = (-9,14)
         
         
         self.smax = 90
@@ -101,7 +101,7 @@ class RobotController():
     def quat_to_angle(self, quat):
         return tf.transformations.euler_from_quaternion((quat.x, quat.y, quat.z, quat.w))[2]
 
-    def normalize_angle(angle):
+    def normalize_angle(self , angle):
         res = angle
         while res > pi:
             res -= 2.0 * pi
@@ -113,6 +113,7 @@ class RobotController():
         res = angle
         if res < 0:
             return res + (2 * pi)
+        return res
         
 
    
@@ -125,6 +126,7 @@ class RobotController():
         
         
         dim = int(math.sqrt(len(msg.data)))
+        print(msg.data)
         mapp = np.array(list(msg.data)).reshape(dim,dim)
         histogram = np.zeros((self.number_of_sectors,))
         
@@ -146,7 +148,7 @@ class RobotController():
         for i in range(len(histogram)):
             val = 0
             for j in range(-smooth_mid,smooth_mid):
-                if i+j < 0 or i+j > len(histogram):
+                if i+j < 0 or i+j >= len(histogram):
                     continue
                 val += histogram[i+j] * self.smoothing_factors[smooth_mid+j]
             val /= 2 * (smooth_mid+1) + 1
@@ -266,4 +268,4 @@ if __name__ == '__main__':
     
     robot = RobotController()    
 
-
+    rospy.spin()

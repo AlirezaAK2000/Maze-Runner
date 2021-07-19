@@ -4,7 +4,7 @@
     <node pkg="maze_runner" type="velocity_controller.py" name="velocity_controller" output="screen"></node>
 
 
-    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_funcy_maze.launch">
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_funky_maze.launch">
         <arg name="x_pos" value="-9.0"/>
         <arg name="y_pos" value="-8.0"/>
         <arg name="z_pos" value="0.0"/>
