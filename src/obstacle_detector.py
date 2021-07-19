@@ -61,11 +61,11 @@ class ObstacleDetector:
         )
         for i in range(num_angles):
             range_scan = self.laser_scan.ranges[i]
-            if not math.isinf(range_scan) and range_scan > self.laser_scan.range_min and range_scan > self.laser_scan.range_max:
+            if not math.isinf(range_scan) and range_scan > self.laser_scan.range_min and range_scan < self.laser_scan.range_max:
                 angle = i * self.laser_scan.angle_increment + self.laser_scan.angle_min + self.position["theta"]
-                x = int((range_scan * math.sin(angle) + self.position["x"]) / self.unit) + (self.GRIDSIZE + 1) / 2
-                y = int((range_scan * math.cos(angle) + self.position["y"]) / self.unit) + (self.GRIDSIZE + 1) / 2
-                self.map_numpy[x,y] = max(100, self.map_numpy[x,y] + 1)
+                x = int((range_scan * math.sin(angle) + self.position["x"]) / self.unit) + int((self.GRIDSIZE + 1) / 2)
+                y = int((range_scan * math.cos(angle) + self.position["y"]) / self.unit) + int((self.GRIDSIZE + 1) / 2)
+                self.map_numpy[x,y] = min(100, self.map_numpy[x,y] + 1)
         
         robot_x = int(self.position["x"] / self.unit) + int((self.GRIDSIZE + 1) / 2)
         robot_y = int(self.position["y"] / self.unit) + int((self.GRIDSIZE + 1) / 2)

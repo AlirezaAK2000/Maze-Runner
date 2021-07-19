@@ -90,7 +90,7 @@ class RobotController():
         
         #TODO
         # tune the funcking threshold
-        self.threshold = 0.1
+        self.threshold = 150
         
         tw_msg = Twist()
         
@@ -157,6 +157,7 @@ class RobotController():
         
         # nearest valley
         valleys = histogram <= self.threshold
+        print(histogram.tolist())
         
         print(valleys)
         
@@ -269,3 +270,5 @@ if __name__ == '__main__':
     robot = RobotController()    
 
     rospy.spin()
+
+
