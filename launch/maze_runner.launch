@@ -2,21 +2,12 @@
 
     <node pkg="maze_runner" type="obstacle_detector.py" name="obstacle_detector" ></node>
 
-    <node pkg="maze_runner" type="velocity_controller.py" name="velocity_controller" output="screen" clear_params="true">
-    
-        <param name="shape" value="$(arg shape)" />
-        <param name="xdim" value="3"/>
-        <param name="ydim" value="1"/>
-        <param name="growth" value="0.1"/>
-        <param name="xorg" value="0"/>
-        <param name="yorg" value="0"/>
-
-    </node>
+    <node pkg="maze_runner" type="velocity_controller.py" name="velocity_controller" output="screen" clear_params="true"></node>
 
 
-    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_house.launch">
-        <arg name="x_pos" value="0"/>
-        <arg name="y_pos" value="0"/>
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_funky_maze.launch">
+        <arg name="x_pos" value="-9.0"/>
+        <arg name="y_pos" value="-6.0"/>
         <arg name="z_pos" value="0.0"/>
 
     </include>

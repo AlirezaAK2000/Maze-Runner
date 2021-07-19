@@ -1,10 +1,7 @@
 #! /usr/bin/env python
 
 import math
-from numpy.core.arrayprint import dtype_is_implied
-from numpy.core.function_base import geomspace
-from numpy.core.overrides import verify_matching_signatures
-from numpy.lib.function_base import select
+
 import rospy
 from geometry_msgs.msg import Twist, Point, Quaternion
 import tf
@@ -14,6 +11,9 @@ import matplotlib.pyplot as plt
 from math import pi
 
 import numpy as np
+
+
+from nav_msgs.msg import OccupancyGrid
 
 
 import sys
@@ -32,7 +32,7 @@ class RobotController():
 
 
         # How fast will we check the odometry values?
-        rate = 10
+        rate = 20
 
         # Set the equivalent ROS rate variable
         self.r = rospy.Rate(rate)
@@ -54,7 +54,10 @@ class RobotController():
 
         self.odom_frame = '/odom'
 
-
+        self.angular_speed = 0.7
+        
+        self.linear_speed = 0.4
+        
         # Find out if the robot uses /base_link or /base_footprint
         try:
             self.tf_listener.waitForTransform(
@@ -69,84 +72,181 @@ class RobotController():
                 rospy.loginfo(
                     "Cannot find transform between /odom and /base_link or /base_footprint")
                 rospy.signal_shutdown("tf Exception")
+                
+        self.grid_sub = rospy.Subscriber('/obstacle' , OccupancyGrid , self.callback_grid)
+        
+        self.angle_increment = 0.017501922324299812
+        
+        self.angle_max = 6.28318977355957
+        
+        self.number_of_sectors = int(self.angle_max/self.angle_increment) + 1
+        
+        self.smoothing_factors = [1,2,3,4,5,4,3,2,1]
+        
+        self.target_point = (0,0)
+        
+        
+        self.smax = 90
+        
+        #TODO
+        # tune the funcking threshold
+        self.threshold = 0.1
+        
+        tw_msg = Twist()
+        
+        tw_msg.linear.x = self.linear_speed
+        
+        self.cmd_vel.publish(tw_msg)
 
     def quat_to_angle(self, quat):
         return tf.transformations.euler_from_quaternion((quat.x, quat.y, quat.z, quat.w))[2]
 
-    def normalize_angle(self, angle):
+    def normalize_angle(angle):
         res = angle
         while res > pi:
             res -= 2.0 * pi
         while res < -pi:
             res += 2.0 * pi
         return res
+    
+    def scale_angle(self,angle):
+        res = angle
+        if res < 0:
+            return res + (2 * pi)
+        
 
    
-
-    def move(self):
-
-        (position, self.new_theta) = self.get_odom()
-        x, y = position.x, position.y
-        nearest_point = self.nearest(x, y)
-        mapp_x, mapp_y = self.mapp
-        sum_i = 0
-        n_x, n_y = round(mapp_x[nearest_point], 6), round(
-            mapp_y[nearest_point], 4)
-
-        move_cmd = Twist()
-        move_cmd.angular.z = 0
-        # Set the movement command to forward motion
-        move_cmd.linear.x = self.v
-
-        print(f'first point : {(n_x,n_y)}')
-
-        while True:
-            self.cmd_vel.publish(move_cmd)
-            self.new_velocity_sub.publish(move_cmd)
-
-            delta_x, delta_y = n_x - x, n_y - y
-
-            v_err = np.sqrt(np.power(delta_x, 2) + np.power(delta_y, 2))
+    def callback_grid(self , msg):
+        tw_msg = Twist()
+        
+        rospy.sleep(0.2)
+        
+        self.cmd_vel.publish(tw_msg)
+        
+        
+        dim = int(math.sqrt(len(msg.data)))
+        mapp = np.array(list(msg.data)).reshape(dim,dim)
+        histogram = np.zeros((self.number_of_sectors,))
+        
+        
+        # constructing a polar histogram
+        mid = dim//2
+        y = mid
+        for i in range(dim):
+            x = -mid
+            for j in range(dim):
+                sector = int(self.scale_angle(np.arctan2(y,x)) / self.angle_increment)
+                histogram[sector] += mapp[i,j]
+                x += 1
+            y -= 1
+                
+        
+        # smoothing 
+        smooth_mid = len(self.smoothing_factors) // 2
+        for i in range(len(histogram)):
+            val = 0
+            for j in range(-smooth_mid,smooth_mid):
+                if i+j < 0 or i+j > len(histogram):
+                    continue
+                val += histogram[i+j] * self.smoothing_factors[smooth_mid+j]
+            val /= 2 * (smooth_mid+1) + 1
+            histogram[i] = val
             
-            self.errors.append(v_err)
+        
+        # nearest valley
+        valleys = histogram <= self.threshold
+        
+        print(valleys)
+        
+        pos , rotation = self.get_odom()
+        
+        ktarget = self.scale_angle(np.arctan2((pos.y - self.target_point[1]),(pos.x - self.target_point[0])))
+        
+        ktarget = int(ktarget / self.angle_increment)
+        
+        i = ktarget - 1
+        j = ktarget + 1
+        
+        goal_sector = -1
+        
+        while i >= 0 or j < len(histogram):
             
-            self.v = min(self.k_p * v_err + self.k_i * sum_i , 0.6)
-
-            sum_i += v_err * self.dt
-
-            theta_star = math.atan2(n_y - y, n_x - x)
-
-            delta_theta = theta_star - self.theta
-
-            delta_theta = self.normalize_angle(delta_theta)
-
-            delta_theta = self.k_teta * delta_theta
-
-            move_cmd.angular.z = delta_theta
-            move_cmd.linear.x = self.v
-
-            if v_err <= self.d_star:
-                # self.d_star = v_err
-                nearest_point = (nearest_point + 1) % len(mapp_x)
-                # print(nearest_point)
-                n_x, n_y = round(mapp_x[nearest_point], 6), round(
-                    mapp_y[nearest_point], 6)
-                print(f'next point : {(n_x,n_y,nearest_point)}')
-
-            (position, self.theta) = self.get_odom()
-            x, y = position.x, position.y
-
+            if i >=0 and valleys[i]:
+                ind = i
+                kn = i
+                valley_size = 1
+                while valleys[ind] and ind >= 0:
+                    valley_size += 1
+                    ind -= 1
+                kf = -1
+                if valley_size >= self.smax:
+                    kf = kn - self.smax
+                else:
+                    kf = ind + 1
+                    
+                assert kf != -1
+                goal_sector = (kf + kn) // 2
+                break
+                
+            i -= 1
+            
+            if j < len(histogram) and valleys[j]:
+                ind = j
+                kn = j
+                valley_size = 1
+                while valleys[ind] and ind < len(histogram):
+                    valley_size += 1
+                    ind += 1
+                kf = -1
+                if valley_size >= self.smax:
+                    kf = kn + self.smax
+                else:
+                    kf = ind - 1
+                
+                assert kf != -1
+                goal_sector = (kf + kn) // 2
+                break
+            
+            j += 1
+            
+        goal_angle = self.normalize_angle(goal_sector * self.angle_increment)
+        
+        tw_msg = Twist()
+        
+        last_angle = rotation
+        
+        turn_angle = 0
+        
+        tw_msg.angular.z = self.angular_speed * (goal_angle - rotation) / abs(goal_angle - rotation)
+        
+        while abs(turn_angle) < abs(goal_angle) and not rospy.is_shutdown():
+            
+            self.cmd_vel.publish(tw_msg)
+            
             self.r.sleep()
-
+            
+            position , rotation = self.get_odom()
+            
+            delta_angle = self.normalize_angle(rotation - last_angle)
+            
+            turn_angle += delta_angle
+            last_angle = rotation
+            
+        
+        tw_msg = Twist()
+        self.cmd_vel.publish(tw_msg)
+        rospy.sleep(0.5)
+        tw_msg = Twist()
+        tw_msg.linear.x = self.linear_speed
+        self.cmd_vel.publish(tw_msg)
+        
+        
     def get_odom(self):
         # Get the current transform between the odom and base frames
 
         try:
             (trans, rot) = self.tf_listener.lookupTransform(
                 self.odom_frame, self.base_frame, rospy.Time(0))
-            if self.capture_error:
-                point = Point(*trans)
-                self.errors.append(self.path_error(point.x, point.y))
         except (tf.Exception, tf.ConnectivityException, tf.LookupException):
             rospy.loginfo("TF Exception")
             return
