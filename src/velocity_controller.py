@@ -126,7 +126,7 @@ class RobotController():
         
         N, _ = window_map.shape
         mid_map = (N - 1) / 2
-        distances = np.zeros(map_size)
+        distances = np.zeros(window_map.shape)
         d_max = mid_map * (2 ** 0.5)
         
         # << A - B * d_max = 0 >> and << A + B = M >>.
@@ -134,8 +134,8 @@ class RobotController():
         A = (M * d_max) / (1 + d_max)
         B = M / (1 + d_max)
         
-        for i in range(map_size):
-            for j in range(map_size):
+        for i in range(N):
+            for j in range(N):
                 distances[i,j] = ((i - mid_map) ** 2 + (j - mid_map) ** 2) ** 0.5
         
         magnitude = (window_map ** 2) * (A - B * distances)
@@ -159,6 +159,12 @@ class RobotController():
         dim = int(math.sqrt(len(msg.data)))
         # print(msg.data)
         mapp = np.array(list(msg.data)).reshape(dim,dim)
+        
+        mapp = self.calculate_magnitude(mapp)
+        
+        print(mapp.tolist())
+        
+        
         histogram = np.zeros((self.number_of_sectors,))
         
         
