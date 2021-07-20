@@ -35,7 +35,7 @@ class ObstacleDetector:
         self.grid_pub = rospy.Publisher("grid_data", OccupancyGrid, queue_size=10)
         self.laser_flag = False
         
-        self.obstacle_window = 5
+        self.obstacle_window = 2
 
         self.rate = rospy.Rate(1)
         

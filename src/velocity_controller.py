@@ -60,7 +60,6 @@ class RobotController():
         rospy.sleep(2)
 
         self.angular_speed = 0.3
-        
         self.linear_speed = 0.4
         
         # Find out if the robot uses /base_link or /base_footprint
@@ -78,7 +77,7 @@ class RobotController():
                     "Cannot find transform between /odom and /base_link or /base_footprint")
                 rospy.signal_shutdown("tf Exception")
                 
-        self.grid_sub = rospy.Subscriber('/window_data' , OccupancyGrid , self.callback_grid)
+        self.grid_sub = rospy.Subscriber('/window_data' , OccupancyGrid , self.callback_grid , queue_size=1)
         
         self.angle_increment = 0.017501922324299812
         
@@ -150,7 +149,6 @@ class RobotController():
     def callback_grid(self , msg:OccupancyGrid):
 
         if self.state == ROTATION:
-            print('kir')
             return
         
         self.state = ROTATION
@@ -159,7 +157,7 @@ class RobotController():
         
         self.cmd_vel.publish(tw_msg)
         
-        rospy.sleep(0.2)
+        rospy.sleep(1)
         
         resolution = msg.info.resolution
         width = msg.info.width
@@ -337,8 +335,6 @@ class RobotController():
 
 if __name__ == '__main__':
     
-    robot = RobotController()    
+    robot = RobotController()  
 
     rospy.spin()
-
-
