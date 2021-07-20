@@ -131,7 +131,7 @@ class ObstacleDetector:
         # print(obstacle_detected)
         if obstacle_detected: 
             self.window_pub.publish(map_window)
-            rospy.sleep(10)
+            rospy.sleep(20)
 
         
         map_grid = OccupancyGrid()

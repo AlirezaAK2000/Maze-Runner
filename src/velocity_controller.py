@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 
 from nav_msgs.msg import OccupancyGrid
 
+from copy import deepcopy
 
 import sys
 
@@ -93,9 +94,11 @@ class RobotController():
         
         self.smax = 90
         
+        self.angular_tolerance = 0.2
+        
         #TODO
         # tune the funcking threshold
-        self.threshold = 50
+        self.threshold = 20
         
         tw_msg = Twist()
         
@@ -144,7 +147,7 @@ class RobotController():
         return magnitude
 
    
-    def callback_grid(self , msg):
+    def callback_grid(self , msg:OccupancyGrid):
         
         if self.state == ROTATION:
             return
@@ -157,10 +160,12 @@ class RobotController():
         
         self.cmd_vel.publish(tw_msg)
         
+        resolution = msg.info.resolution
+        width = msg.info.width
+        height = msg.info.height
         
-        dim = int(math.sqrt(len(msg.data)))
-        # print(msg.data)
-        mapp = np.array(list(msg.data)).reshape(dim,dim)
+        
+        mapp = np.array(list(msg.data)).reshape(width,height)
         
         mapp = self.calculate_magnitude(mapp)
         
@@ -168,18 +173,21 @@ class RobotController():
         
         
         histogram = np.zeros((self.number_of_sectors,))
+        pos , rotation = self.get_odom()
         
         # constructing a polar histogram
-        mid = dim//2
-        y = mid
-        for i in range(dim):
-            x = -mid
-            for j in range(dim):
+        y = height // 2
+        for i in range(height):
+            x = -width // 2
+            for j in range(width):
                 sector = int(self.scale_angle(np.arctan2(y,x)) / self.angle_increment)
+                # print(sector)
                 histogram[sector] += mapp[i,j]
                 x += 1
             y -= 1
                 
+                
+        histcopy = deepcopy(histogram)
         
         # smoothing 
         smooth_mid = len(self.smoothing_factors) // 2
@@ -188,7 +196,7 @@ class RobotController():
             for j in range(-smooth_mid,smooth_mid):
                 if i+j < 0 or i+j >= len(histogram):
                     continue
-                val += histogram[i+j] * self.smoothing_factors[smooth_mid+j]
+                val += histcopy[i+j] * self.smoothing_factors[smooth_mid+j]
             val /= 2 * (smooth_mid+1) + 1
             histogram[i] = val
             
@@ -200,12 +208,14 @@ class RobotController():
         # print(valleys)
         
         
-        # plt.hist(histogram, bins=list(range(-len(histogram)//2 ,len(histogram)//2 + 1 )))
-        # plt.show()
+        plt.hist(histogram, bins=list(range(-len(histogram)//2 ,len(histogram)//2 + 1 )))
+        plt.show()
         
-        pos , rotation = self.get_odom()
+        goal = np.arctan2((self.target_point[1] - pos.y),(self.target_point[0] - pos.x))
         
-        ktarget = self.scale_angle(np.arctan2((pos.y - self.target_point[1]),(pos.x - self.target_point[0])))
+        print("goal : {}".format(goal))
+        
+        ktarget = self.scale_angle(np.arctan2((self.target_point[1] - pos.y),(self.target_point[0] - pos.x)))
         # ktarget
         
         ktarget = int(ktarget / self.angle_increment)
@@ -227,11 +237,16 @@ class RobotController():
                 kf = -1
                 if valley_size >= self.smax:
                     kf = kn - self.smax
+                    print("wide valley")
                 else:
+                    print("tight valley")
                     kf = ind + 1
                     
                 assert kf != -1
                 goal_sector = (kf + kn) // 2
+                print("kf : {} kn : {} ktarg : {} goal_sector : {}".format(
+                    kf , kn , ktarget , goal_sector
+                ))
                 break
                 
             i -= 1
@@ -245,29 +260,36 @@ class RobotController():
                     ind += 1
                 kf = -1
                 if valley_size >= self.smax:
+                    print("wide valley")
                     kf = kn + self.smax
                 else:
+                    print("tight valley")
                     kf = ind - 1
                 
                 assert kf != -1
                 goal_sector = (kf + kn) // 2
+                print("kf : {} kn : {} ktarg : {} goal_sector : {}".format(
+                    kf , kn , ktarget , goal_sector
+                ))
                 break
             
             j += 1
             
         goal_angle = self.normalize_angle(goal_sector * self.angle_increment)
         
-        # print("rotation : {} goal_angle : {}".format(rotation , goal_angle))
+        print("rotation : {} goal_angle : {}".format(rotation , goal_angle))
         
         tw_msg = Twist()
         
         last_angle = rotation
         
+        first_angle = rotation
+        
         turn_angle = 0
         
         tw_msg.angular.z = self.angular_speed * ( goal_angle - rotation) / abs(goal_angle - rotation)
         
-        while abs(turn_angle) < abs(goal_angle) and not rospy.is_shutdown():
+        while abs(turn_angle) < abs(first_angle - goal_angle) and not rospy.is_shutdown():
             
             self.cmd_vel.publish(tw_msg)
             
@@ -280,7 +302,7 @@ class RobotController():
             turn_angle += delta_angle
             last_angle = rotation
             
-        
+        print("reached rotation is {}".format(self.get_odom()[1]))
         tw_msg = Twist()
         self.cmd_vel.publish(tw_msg)
         rospy.sleep(2)

@@ -6,7 +6,7 @@
 
     <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_funky_maze.launch">
         <arg name="x_pos" value="-9.0"/>
-        <arg name="y_pos" value="-8.0"/>
+        <arg name="y_pos" value="1.0"/>
         <arg name="z_pos" value="0.0"/>
     </include>
 
