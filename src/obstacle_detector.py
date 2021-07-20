@@ -8,12 +8,13 @@ import rospy
 from nav_msgs.msg import Odometry, OccupancyGrid
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist, Point, Quaternion
 
 #import mathematics libraries 
 import math
 import numpy as np
-
-
+from math import pi
+import tf
 class ObstacleDetector:
     def __init__(self):
         
@@ -26,31 +27,57 @@ class ObstacleDetector:
         self.map_numpy = np.zeros((self.GRIDSIZE,self.GRIDSIZE), dtype=np.int8)
         
         # Initiate a named node
-        rospy.init_node("ObstacleDetector")
+        rospy.init_node("ObstacleDetector" , anonymous=False)
         
         # Subscribe to topic /odom published by the robot base
-        self.odom_sub = rospy.Subscriber("/odom", Odometry, self.callback_odometry)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.callback_laser_scan)
         self.window_pub = rospy.Publisher("/window_data", OccupancyGrid, queue_size=1)
         self.grid_pub = rospy.Publisher("grid_data", OccupancyGrid, queue_size=10)
-        
-
         self.laser_flag = False
-        self.odometry_flag = False
         
-        self.obstacle_window = 8
+        self.obstacle_window = 5
 
         self.rate = rospy.Rate(1)
+        
+        self.base_frame = '/base_link'
+        # The odom frame is usually just /odom
+        self.odom_frame = '/odom'
+        # Initialize the tf listener
+        self.tf_listener = tf.TransformListener()
+        
+        rospy.sleep(2)
+        
+        try:
+            self.tf_listener.waitForTransform(
+                self.odom_frame, '/base_footprint', rospy.Time(), rospy.Duration(1.0))
+            self.base_frame = '/base_footprint'
+        except (tf.Exception, tf.ConnectivityException, tf.LookupException):
+            try:
+                self.tf_listener.waitForTransform(
+                    self.odom_frame, '/base_link', rospy.Time(), rospy.Duration(1.0))
+                self.base_frame = '/base_link'
+            except (tf.Exception, tf.ConnectivityException, tf.LookupException):
+                rospy.loginfo(
+                    "Cannot find transform between /odom and /base_link or /base_footprint in obstacle detector")
+                rospy.signal_shutdown("tf Exception")
 
-    def callback_odometry(self, msg):
-        if not self.odometry_flag:
-            self.position = {
-                "x": msg.pose.pose.position.x,
-                "y": msg.pose.pose.position.y,
-                "theta": msg.pose.pose.orientation.x
-            }
+        
+        
+    def quat_to_angle(self, quat):
+        return tf.transformations.euler_from_quaternion((quat.x, quat.y, quat.z, quat.w))[2]
 
-            self.odometry_flag = True
+    def get_odom(self):
+        # Get the current transform between the odom and base frames
+
+        try:
+            (trans, rot) = self.tf_listener.lookupTransform(
+                self.odom_frame, self.base_frame, rospy.Time(0))
+        except (tf.Exception, tf.ConnectivityException, tf.LookupException):
+            rospy.loginfo("TF Exception")
+            return
+
+        return (Point(*trans), self.quat_to_angle(Quaternion(*rot)))
+
 
     def callback_laser_scan(self, msg):
         if not self.laser_flag:
@@ -58,6 +85,16 @@ class ObstacleDetector:
             self.laser_flag = True
 
     def update_grid(self):
+        
+        pos , rot = self.get_odom()
+        
+        position = {
+            'x':pos.x,
+            'y':pos.y,
+            'theta':rot
+        }
+        
+        
         num_angles = round(
             (self.laser_scan.angle_max - self.laser_scan.angle_min)
             / self.laser_scan.angle_increment
@@ -65,13 +102,13 @@ class ObstacleDetector:
         for i in range(num_angles):
             range_scan = self.laser_scan.ranges[i]
             if not math.isinf(range_scan) and range_scan > self.laser_scan.range_min and range_scan < self.laser_scan.range_max:
-                angle = i * self.laser_scan.angle_increment + self.laser_scan.angle_min + self.position["theta"]
-                x = int((range_scan * math.sin(angle) + self.position["x"]) / self.unit) + int((self.GRIDSIZE + 1) / 2)
-                y = int((range_scan * math.cos(angle) + self.position["y"]) / self.unit) + int((self.GRIDSIZE + 1) / 2)
+                angle = i * self.laser_scan.angle_increment + self.laser_scan.angle_min + position["theta"]
+                x = int((range_scan * math.cos(angle) + position["x"]) / self.unit) + int((self.GRIDSIZE + 1) / 2)
+                y = int((range_scan * math.sin(angle) + position["y"]) / self.unit) + int((self.GRIDSIZE + 1) / 2)
                 self.map_numpy[x,y] = min(100, self.map_numpy[x,y] + 1)
         
-        robot_x = int(self.position["x"] / self.unit) + int((self.GRIDSIZE + 1) / 2)
-        robot_y = int(self.position["y"] / self.unit) + int((self.GRIDSIZE + 1) / 2)
+        robot_x = int(position["x"] / self.unit) + int((self.GRIDSIZE + 1) / 2)
+        robot_y = int(position["y"] / self.unit) + int((self.GRIDSIZE + 1) / 2)
         
         half_window = int((self.WINDOW - 1) / 2)
         map_window_data = self.map_numpy[robot_x - half_window :robot_x + half_window + 1, robot_y - half_window :robot_y + half_window + 1]
@@ -89,9 +126,9 @@ class ObstacleDetector:
         map_window.info.height = self.WINDOW
         map_window.info.origin = self.grid_to_pose(robot_x - half_window, robot_y - half_window)
         # data
-        map_window.data = map_window_data.reshape(self.WINDOW * self.WINDOW).tolist()
+        map_window.data = map_window_data.reshape(-1).tolist()
         obstacle_detected = len([i for i in self.laser_scan.ranges[:self.obstacle_window] + self.laser_scan.ranges[-self.obstacle_window:] if (not math.isinf(i)) and i < 1.5]) > 0
-        print(obstacle_detected)
+        # print(obstacle_detected)
         if obstacle_detected: 
             self.window_pub.publish(map_window)
             rospy.sleep(10)
@@ -108,11 +145,10 @@ class ObstacleDetector:
         map_grid.info.height = self.GRIDSIZE
         map_grid.info.origin = self.grid_to_pose(0, 0)
         # data
-        map_grid.data = self.map_numpy.reshape(self.GRIDSIZE * self.GRIDSIZE).tolist()
+        map_grid.data = self.map_numpy.reshape(-1).tolist()
         self.grid_pub.publish(map_grid)
         
         self.laser_flag = False
-        self.odometry_flag = False
 
 
     def grid_to_pose(self, x_grid , y_grid):
@@ -128,6 +164,6 @@ class ObstacleDetector:
 if __name__ == "__main__":
     obstacle_detector = ObstacleDetector()
     while not rospy.is_shutdown():
-        if obstacle_detector.laser_flag and obstacle_detector.odometry_flag:
+        if obstacle_detector.laser_flag:
             obstacle_detector.update_grid()
             obstacle_detector.rate.sleep()

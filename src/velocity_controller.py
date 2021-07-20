@@ -58,8 +58,6 @@ class RobotController():
         # Give tf some time to fill its buffer
         rospy.sleep(2)
 
-        self.odom_frame = '/odom'
-
         self.angular_speed = 0.3
         
         self.linear_speed = 0.4
@@ -97,7 +95,7 @@ class RobotController():
         
         #TODO
         # tune the funcking threshold
-        self.threshold = 200
+        self.threshold = 50
         
         tw_msg = Twist()
         
@@ -259,7 +257,7 @@ class RobotController():
             
         goal_angle = self.normalize_angle(goal_sector * self.angle_increment)
         
-        print("rotation : {} goal_angle : {}".format(rotation , goal_angle))
+        # print("rotation : {} goal_angle : {}".format(rotation , goal_angle))
         
         tw_msg = Twist()
         
@@ -267,7 +265,7 @@ class RobotController():
         
         turn_angle = 0
         
-        tw_msg.angular.z = self.angular_speed * (rotation - goal_angle) / abs(goal_angle - rotation)
+        tw_msg.angular.z = self.angular_speed * ( goal_angle - rotation) / abs(goal_angle - rotation)
         
         while abs(turn_angle) < abs(goal_angle) and not rospy.is_shutdown():
             
