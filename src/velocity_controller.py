@@ -30,7 +30,7 @@ class RobotController():
     def __init__(self, *args, **kwargs):
         # Give the node a name
         rospy.init_node('velocity_controller', anonymous=False)
-
+        print(rospy.get_rostime())
         # Set rospy to execute a shutdown function when terminating the script
         rospy.on_shutdown(self.shutdown)
 
@@ -91,6 +91,7 @@ class RobotController():
         self.target_point = (0,0)
         
         self.state = MOVE
+        self.end_rotation = rospy.get_rostime()
         
         self.smax = 90
         
@@ -148,15 +149,13 @@ class RobotController():
 
    
     def callback_grid(self , msg:OccupancyGrid):
-
-        if self.state == ROTATION:
-            print('kir')
+        if self.state == ROTATION or self.end_rotation >= msg.info.map_load_time:
             return
         
         self.state = ROTATION
         
         tw_msg = Twist()
-        
+        # how to avoid race condition in python
         self.cmd_vel.publish(tw_msg)
         
         rospy.sleep(0.2)
@@ -312,6 +311,7 @@ class RobotController():
         self.cmd_vel.publish(tw_msg)
         
         self.state = MOVE
+        self.end_rotation = rospy.get_rostime()
         
         
     def get_odom(self):

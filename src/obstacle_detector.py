@@ -28,7 +28,7 @@ class ObstacleDetector:
         
         # Initiate a named node
         rospy.init_node("ObstacleDetector" , anonymous=False)
-        
+        print(rospy.get_rostime())
         # Subscribe to topic /odom published by the robot base
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.callback_laser_scan)
         self.window_pub = rospy.Publisher("/window_data", OccupancyGrid, queue_size=1)
