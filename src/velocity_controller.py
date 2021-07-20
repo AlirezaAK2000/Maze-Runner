@@ -98,7 +98,7 @@ class RobotController():
         
         #TODO
         # tune the funcking threshold
-        self.threshold = 20
+        self.threshold = 50
         
         tw_msg = Twist()
         
@@ -148,17 +148,18 @@ class RobotController():
 
    
     def callback_grid(self , msg:OccupancyGrid):
-        
+
         if self.state == ROTATION:
+            print('kir')
             return
         
         self.state = ROTATION
         
         tw_msg = Twist()
         
-        rospy.sleep(0.2)
-        
         self.cmd_vel.publish(tw_msg)
+        
+        rospy.sleep(0.2)
         
         resolution = msg.info.resolution
         width = msg.info.width
@@ -208,8 +209,8 @@ class RobotController():
         # print(valleys)
         
         
-        plt.hist(histogram, bins=list(range(-len(histogram)//2 ,len(histogram)//2 + 1 )))
-        plt.show()
+        # plt.hist(histogram, bins=list(range(-len(histogram)//2 ,len(histogram)//2 + 1 )))
+        # plt.show()
         
         goal = np.arctan2((self.target_point[1] - pos.y),(self.target_point[0] - pos.x))
         

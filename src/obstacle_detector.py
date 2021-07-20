@@ -130,9 +130,8 @@ class ObstacleDetector:
         obstacle_detected = len([i for i in self.laser_scan.ranges[:self.obstacle_window] + self.laser_scan.ranges[-self.obstacle_window:] if (not math.isinf(i)) and i < 1.5]) > 0
         # print(obstacle_detected)
         if obstacle_detected: 
+            print('obstacle detected')
             self.window_pub.publish(map_window)
-            rospy.sleep(20)
-
         
         map_grid = OccupancyGrid()
         # header
