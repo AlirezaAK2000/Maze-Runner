@@ -18,8 +18,8 @@ import tf
 class ObstacleDetector:
     def __init__(self):
         
-        self.GRIDSIZE = 115
-        self.WINDOW = 21
+        self.GRIDSIZE = 245
+        self.WINDOW = 33
         self.unit = 0.2
         
         self.ID = 0
@@ -28,14 +28,14 @@ class ObstacleDetector:
         
         # Initiate a named node
         rospy.init_node("ObstacleDetector" , anonymous=False)
-        
+        print(rospy.get_rostime())
         # Subscribe to topic /odom published by the robot base
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.callback_laser_scan)
         self.window_pub = rospy.Publisher("/window_data", OccupancyGrid, queue_size=1)
         self.grid_pub = rospy.Publisher("grid_data", OccupancyGrid, queue_size=10)
         self.laser_flag = False
         
-        self.obstacle_window = 2
+        self.obstacle_window = 5
 
         self.rate = rospy.Rate(1)
         
@@ -121,7 +121,7 @@ class ObstacleDetector:
         map_window.header.frame_id = "map"
         # info
         map_window.info.map_load_time = rospy.get_rostime()
-        map_window.info.resolution = 0.2
+        map_window.info.resolution = self.unit
         map_window.info.width = self.WINDOW
         map_window.info.height = self.WINDOW
         map_window.info.origin = self.grid_to_pose(robot_x - half_window, robot_y - half_window)
@@ -130,7 +130,6 @@ class ObstacleDetector:
         obstacle_detected = len([i for i in self.laser_scan.ranges[:self.obstacle_window] + self.laser_scan.ranges[-self.obstacle_window:] if (not math.isinf(i)) and i < 1.5]) > 0
         # print(obstacle_detected)
         if obstacle_detected: 
-            print('obstacle detected')
             self.window_pub.publish(map_window)
         
         map_grid = OccupancyGrid()
@@ -139,7 +138,7 @@ class ObstacleDetector:
         map_grid.header.frame_id = "map"
         # info
         map_grid.info.map_load_time = rospy.get_rostime()
-        map_grid.info.resolution = 0.2
+        map_grid.info.resolution = self.unit
         map_grid.info.width = self.GRIDSIZE
         map_grid.info.height = self.GRIDSIZE
         map_grid.info.origin = self.grid_to_pose(0, 0)

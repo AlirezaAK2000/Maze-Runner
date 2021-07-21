@@ -6,6 +6,7 @@ from numpy.core.shape_base import block
 
 import rospy
 from geometry_msgs.msg import Twist, Point, Quaternion
+from rospy.timer import sleep
 import tf
 from math import radians, sqrt, pow, pi
 
@@ -22,6 +23,7 @@ from copy import deepcopy
 
 import sys
 
+import threading
 
 
 ROTATION , MOVE = range(2)
@@ -30,7 +32,7 @@ class RobotController():
     def __init__(self, *args, **kwargs):
         # Give the node a name
         rospy.init_node('velocity_controller', anonymous=False)
-
+        print(rospy.get_rostime())
         # Set rospy to execute a shutdown function when terminating the script
         rospy.on_shutdown(self.shutdown)
 
@@ -85,25 +87,44 @@ class RobotController():
         
         self.number_of_sectors = int(self.angle_max/self.angle_increment) + 1
         
-        self.smoothing_factors = [1,2,3,4,5,4,3,2,1]
+        self.smooth_factor = 20
+        
+        self.smoothing_factors = list(range(1,self.smooth_factor)) + [self.smooth_factor] + list(reversed(range(1,self.smooth_factor))) 
         
         self.target_point = (0,0)
         
-        self.state = MOVE
         
-        self.smax = 90
+        self.targets = [(4,0),(-9,-6)]
+        
+        self.state = MOVE
+        self.end_rotation = rospy.get_rostime()
+        
+        self.smax = 45
         
         self.angular_tolerance = 0.2
         
         #TODO
         # tune the funcking threshold
-        self.threshold = 50
+        self.threshold = 10000
         
         tw_msg = Twist()
         
         tw_msg.linear.x = self.linear_speed
         
         self.cmd_vel.publish(tw_msg)
+        
+        threading.Thread(target = self.goal_handler).start()
+        
+        
+    def goal_handler(self):
+        
+        while True:
+            pos , _  = self.get_odom()
+            if math.sqrt((self.target_point[0] - pos.x)**2 + (self.target_point[1] - pos.y)** 2) < 2:
+                self.targets.append(self.targets.pop(0))
+                self.target_point = self.targets[0]
+                print("new target {}".format(self.target_point))
+            sleep(1)
 
     def quat_to_angle(self, quat):
         return tf.transformations.euler_from_quaternion((quat.x, quat.y, quat.z, quat.w))[2]
@@ -147,14 +168,13 @@ class RobotController():
 
    
     def callback_grid(self , msg:OccupancyGrid):
-
-        if self.state == ROTATION:
+        if self.state == ROTATION or self.end_rotation >= msg.info.map_load_time:
             return
         
         self.state = ROTATION
         
         tw_msg = Twist()
-        
+        # how to avoid race condition in python
         self.cmd_vel.publish(tw_msg)
         
         rospy.sleep(1)
@@ -172,10 +192,9 @@ class RobotController():
         
         
         histogram = np.zeros((self.number_of_sectors,))
-        pos , rotation = self.get_odom()
         
         # constructing a polar histogram
-        y = height // 2
+        y = -height // 2
         for i in range(height):
             x = -width // 2
             for j in range(width):
@@ -183,7 +202,7 @@ class RobotController():
                 # print(sector)
                 histogram[sector] += mapp[i,j]
                 x += 1
-            y -= 1
+            y += 1
                 
                 
         histcopy = deepcopy(histogram)
@@ -199,23 +218,26 @@ class RobotController():
             val /= 2 * (smooth_mid+1) + 1
             histogram[i] = val
             
-        
+        # histogram = histogram[::-1]
         # nearest valley
         valleys = histogram <= self.threshold
         # print(histogram.tolist())
         
         # print(valleys)
+        # print(min(histogram))
+        
+        # print(valleys)
         
         
-        # plt.hist(histogram, bins=list(range(-len(histogram)//2 ,len(histogram)//2 + 1 )))
-        # plt.show()
+        # goal = np.arctan2((self.target_point[1] - pos.y),(self.target_point[0] - pos.x))
         
-        goal = np.arctan2((self.target_point[1] - pos.y),(self.target_point[0] - pos.x))
-        
-        print("goal : {}".format(goal))
+        # print("goal : {}".format(goal))
+        pos , rotation = self.get_odom()
         
         ktarget = self.scale_angle(np.arctan2((self.target_point[1] - pos.y),(self.target_point[0] - pos.x)))
         # ktarget
+        
+        robot_heading_sector = self.scale_angle(rotation) // self.angle_increment
         
         ktarget = int(ktarget / self.angle_increment)
         
@@ -224,8 +246,10 @@ class RobotController():
         
         goal_sector = -1
         
+        kn,kf = -1,-1
+        
+        
         while i >= 0 or j < len(histogram):
-            
             if i >=0 and valleys[i]:
                 ind = i
                 kn = i
@@ -233,7 +257,6 @@ class RobotController():
                 while ind >= 0 and valleys[ind]:
                     valley_size += 1
                     ind -= 1
-                kf = -1
                 if valley_size >= self.smax:
                     kf = kn - self.smax
                     print("wide valley")
@@ -257,7 +280,6 @@ class RobotController():
                 while ind < len(histogram) and valleys[ind]:
                     valley_size += 1
                     ind += 1
-                kf = -1
                 if valley_size >= self.smax:
                     print("wide valley")
                     kf = kn + self.smax
@@ -274,7 +296,20 @@ class RobotController():
             
             j += 1
             
-        goal_angle = self.normalize_angle(goal_sector * self.angle_increment)
+        assert goal_sector != -1
+            
+        plt.plot(list(range(len(histogram))),histogram)
+        plt.axhline(y=self.threshold , color = 'r')
+        plt.axvline(x=goal_sector , label='goal sector' ,color ='b')
+        plt.axvline(x=kn , label ='kn' , color = 'c')
+        plt.axvline(x=kf , label = 'kf' , color = 'g')
+        plt.axvline(x=robot_heading_sector , label = 'robot heading sector' , color = 'r')
+        plt.axvline(x=ktarget , label = 'ktarget' , color = 'y')
+        
+        
+        
+        plt.show()
+        goal_angle = self.normalize_angle(goal_sector * self.angle_increment) 
         
         print("rotation : {} goal_angle : {}".format(rotation , goal_angle))
         
@@ -310,6 +345,7 @@ class RobotController():
         self.cmd_vel.publish(tw_msg)
         
         self.state = MOVE
+        self.end_rotation = rospy.get_rostime()
         
         
     def get_odom(self):
