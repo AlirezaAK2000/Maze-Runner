@@ -18,7 +18,7 @@ import tf
 class ObstacleDetector:
     def __init__(self):
         
-        self.GRIDSIZE = 245
+        self.GRIDSIZE = 235
         self.WINDOW = 33
         self.unit = 0.2
         
@@ -35,7 +35,7 @@ class ObstacleDetector:
         self.grid_pub = rospy.Publisher("grid_data", OccupancyGrid, queue_size=10)
         self.laser_flag = False
         
-        self.obstacle_window = 5
+        self.obstacle_window = 6
 
         self.rate = rospy.Rate(1)
         
@@ -103,15 +103,15 @@ class ObstacleDetector:
             range_scan = self.laser_scan.ranges[i]
             if not math.isinf(range_scan) and range_scan > self.laser_scan.range_min and range_scan < self.laser_scan.range_max:
                 angle = i * self.laser_scan.angle_increment + self.laser_scan.angle_min + position["theta"]
-                x = int((range_scan * math.cos(angle) + position["x"]) / self.unit) + int((self.GRIDSIZE + 1) / 2)
-                y = int((range_scan * math.sin(angle) + position["y"]) / self.unit) + int((self.GRIDSIZE + 1) / 2)
-                self.map_numpy[x,y] = min(100, self.map_numpy[x,y] + 1)
+                x = int((range_scan * math.cos(angle) + position["x"]) / self.unit) + int((self.GRIDSIZE - 1) / 2)
+                y = int((range_scan * math.sin(angle) + position["y"]) / self.unit) + int((self.GRIDSIZE - 1) / 2)
+                self.map_numpy[y,x] = min(100, self.map_numpy[y,x] + 1)
         
-        robot_x = int(position["x"] / self.unit) + int((self.GRIDSIZE + 1) / 2)
-        robot_y = int(position["y"] / self.unit) + int((self.GRIDSIZE + 1) / 2)
+        robot_x = int(position["x"] / self.unit) + int((self.GRIDSIZE - 1) / 2)
+        robot_y = int(position["y"] / self.unit) + int((self.GRIDSIZE - 1) / 2)
         
         half_window = int((self.WINDOW - 1) / 2)
-        map_window_data = self.map_numpy[robot_x - half_window :robot_x + half_window + 1, robot_y - half_window :robot_y + half_window + 1]
+        map_window_data = self.map_numpy[robot_y - half_window :robot_y + half_window + 1,robot_x - half_window :robot_x + half_window + 1]
         
         self.ID += 1
         
@@ -127,7 +127,7 @@ class ObstacleDetector:
         map_window.info.origin = self.grid_to_pose(robot_x - half_window, robot_y - half_window)
         # data
         map_window.data = map_window_data.reshape(-1).tolist()
-        obstacle_detected = len([i for i in self.laser_scan.ranges[:self.obstacle_window] + self.laser_scan.ranges[-self.obstacle_window:] if (not math.isinf(i)) and i < 1.5]) > 0
+        obstacle_detected = len([i for i in self.laser_scan.ranges[:self.obstacle_window] + self.laser_scan.ranges[-self.obstacle_window:] if (not math.isinf(i)) and i < 1]) > 0
         # print(obstacle_detected)
         if obstacle_detected: 
             self.window_pub.publish(map_window)

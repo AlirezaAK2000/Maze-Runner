@@ -62,7 +62,7 @@ class RobotController():
         rospy.sleep(2)
 
         self.angular_speed = 0.3
-        self.linear_speed = 0.4
+        self.linear_speed = 0.2
         
         # Find out if the robot uses /base_link or /base_footprint
         try:
@@ -81,13 +81,13 @@ class RobotController():
                 
         self.grid_sub = rospy.Subscriber('/window_data' , OccupancyGrid , self.callback_grid , queue_size=1)
         
-        self.angle_increment = 0.017501922324299812
+        self.angle_increment = 0.0872665246327718
         
         self.angle_max = 6.28318977355957
         
         self.number_of_sectors = int(self.angle_max/self.angle_increment) + 1
         
-        self.smooth_factor = 20
+        self.smooth_factor = 5
         
         self.smoothing_factors = list(range(1,self.smooth_factor)) + [self.smooth_factor] + list(reversed(range(1,self.smooth_factor))) 
         
@@ -99,13 +99,13 @@ class RobotController():
         self.state = MOVE
         self.end_rotation = rospy.get_rostime()
         
-        self.smax = 45
+        self.smax = 6
         
         self.angular_tolerance = 0.2
         
         #TODO
         # tune the funcking threshold
-        self.threshold = 10000
+        self.threshold = 750
         
         tw_msg = Twist()
         
@@ -147,7 +147,7 @@ class RobotController():
     def calculate_magnitude(self, window_map):
         # we have two parameters A , B. 
         # assume << A + B = M>> to reduce the tunable parameters and calculations
-        M = 1 # could be any real positive number
+        M = 0.1 # could be any real positive number
         
         N, _ = window_map.shape
         mid_map = (N - 1) / 2
@@ -194,15 +194,15 @@ class RobotController():
         histogram = np.zeros((self.number_of_sectors,))
         
         # constructing a polar histogram
-        y = -height // 2
+        y = (-height // 2) * resolution
         for i in range(height):
-            x = -width // 2
+            x = (-width // 2) * resolution
             for j in range(width):
                 sector = int(self.scale_angle(np.arctan2(y,x)) / self.angle_increment)
                 # print(sector)
                 histogram[sector] += mapp[i,j]
-                x += 1
-            y += 1
+                x += resolution
+            y += resolution
                 
                 
         histcopy = deepcopy(histogram)
@@ -212,15 +212,12 @@ class RobotController():
         for i in range(len(histogram)):
             val = 0
             for j in range(-smooth_mid,smooth_mid):
-                if i+j < 0 or i+j >= len(histogram):
-                    continue
-                val += histcopy[i+j] * self.smoothing_factors[smooth_mid+j]
+                val += histcopy[(i+j) % len(histogram) if i+j >= 0 else i+j] * self.smoothing_factors[smooth_mid+j]
             val /= 2 * (smooth_mid+1) + 1
             histogram[i] = val
             
         # histogram = histogram[::-1]
         # nearest valley
-        valleys = histogram <= self.threshold
         # print(histogram.tolist())
         
         # print(valleys)
@@ -239,7 +236,8 @@ class RobotController():
         
         robot_heading_sector = self.scale_angle(rotation) // self.angle_increment
         
-        ktarget = int(ktarget / self.angle_increment)
+        ktarget =int(ktarget / self.angle_increment)
+        # ktarget =int(ktarget / self.angle_increment)
         
         i = ktarget - 1
         j = ktarget + 1
@@ -248,6 +246,8 @@ class RobotController():
         
         kn,kf = -1,-1
         
+        # histogram = np.array(histogram.tolist() + histogram.tolist() + histogram.tolist())
+        valleys = histogram <= self.threshold
         
         while i >= 0 or j < len(histogram):
             if i >=0 and valleys[i]:
@@ -296,6 +296,10 @@ class RobotController():
             
             j += 1
             
+            
+            
+            
+                
         assert goal_sector != -1
             
         plt.plot(list(range(len(histogram))),histogram)
@@ -303,11 +307,10 @@ class RobotController():
         plt.axvline(x=goal_sector , label='goal sector' ,color ='b')
         plt.axvline(x=kn , label ='kn' , color = 'c')
         plt.axvline(x=kf , label = 'kf' , color = 'g')
-        plt.axvline(x=robot_heading_sector , label = 'robot heading sector' , color = 'r')
+        plt.axvline(x=robot_heading_sector, label = 'robot heading sector' , color = 'r')
         plt.axvline(x=ktarget , label = 'ktarget' , color = 'y')
         
-        
-        
+        plt.plot(list(range(len(histcopy))),histcopy)
         plt.show()
         goal_angle = self.normalize_angle(goal_sector * self.angle_increment) 
         
